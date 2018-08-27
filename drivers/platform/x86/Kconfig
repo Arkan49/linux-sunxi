@@ -1232,6 +1232,18 @@ config I2C_MULTI_INSTANTIATE
 	  To compile this driver as a module, choose M here: the module
 	  will be called i2c-multi-instantiate.
 
+config INTEL_ISP_DUMMY
+	tristate "Intel ISP dummy driver"
+	depends on PCI && IOSF_MBI && PM
+	help
+	  Dummy driver for Intel's Image Signal Processor found on Bay and
+	  Cherry Trail devices. The sole purpose of this driver is to turn
+	  the ISP off (put it in D3) to save power and to allow entering of
+	  S0ix modes.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called intel_isp_dummy.
+
 endif # X86_PLATFORM_DEVICES
 
 config PMC_ATOM
