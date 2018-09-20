@@ -132,6 +132,24 @@ static void pwm_lpss_get_put_runtime_pm(struct pwm_chip *chip,
 		pm_runtime_put(chip->dev);
 }
 
+static int pwm_lpss_prepare_and_enable(struct pwm_lpss_chip *lpwm,
+				       struct pwm_device *pwm,
+				       struct pwm_state *state)
+{
+	int ret;
+
+	pwm_lpss_prepare(lpwm, pwm, state->duty_cycle, state->period);
+	pwm_lpss_write(pwm, pwm_lpss_read(pwm) | PWM_SW_UPDATE);
+	pwm_lpss_cond_enable(pwm, lpwm->info->bypass == false);
+	ret = pwm_lpss_wait_for_update(pwm);
+	if (ret)
+		return ret;
+
+	pwm_lpss_cond_enable(pwm, lpwm->info->bypass == true);
+
+	return 0;
+}
+
 static int pwm_lpss_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 			  struct pwm_state *state)
 {
@@ -146,14 +164,9 @@ static int pwm_lpss_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 			goto out;
 
 		if (!pwm_is_enabled(pwm)) {
-			pwm_lpss_prepare(lpwm, pwm, state->duty_cycle, state->period);
-			pwm_lpss_write(pwm, pwm_lpss_read(pwm) | PWM_SW_UPDATE);
-			pwm_lpss_cond_enable(pwm, lpwm->info->bypass == false);
-			ret = pwm_lpss_wait_for_update(pwm);
+			ret = pwm_lpss_prepare_and_enable(lpwm, pwm, state);
 			if (ret)
 				goto out;
-
-			pwm_lpss_cond_enable(pwm, lpwm->info->bypass == true);
 		} else {
 			pwm_lpss_prepare(lpwm, pwm, state->duty_cycle, state->period);
 			pwm_lpss_write(pwm, pwm_lpss_read(pwm) | PWM_SW_UPDATE);
@@ -273,15 +286,7 @@ int pwm_lpss_resume(struct device *dev)
 				continue;
 		}
 
-		pwm_lpss_prepare(lpwm, pwm, pwm_get_duty_cycle(pwm),
-				 pwm_get_period(pwm));
-		pwm_lpss_write(pwm, pwm_lpss_read(pwm) | PWM_SW_UPDATE);
-		pwm_lpss_cond_enable(pwm, lpwm->info->bypass == false);
-		ret = pwm_lpss_wait_for_update(pwm);
-		if (ret)
-			continue;
-
-		pwm_lpss_cond_enable(pwm, lpwm->info->bypass == true);
+		pwm_lpss_prepare_and_enable(lpwm, pwm, &pwm->state);
 	}
 
 	return 0;
