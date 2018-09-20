@@ -141,11 +141,11 @@ static int pwm_lpss_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 	pm_runtime_get_sync(chip->dev);
 
 	if (state->enabled) {
-		if (!pwm_is_enabled(pwm)) {
-			ret = pwm_lpss_is_updating(pwm);
-			if (ret)
-				goto out;
+		ret = pwm_lpss_is_updating(pwm);
+		if (ret)
+			goto out;
 
+		if (!pwm_is_enabled(pwm)) {
 			pwm_lpss_prepare(lpwm, pwm, state->duty_cycle, state->period);
 			pwm_lpss_write(pwm, pwm_lpss_read(pwm) | PWM_SW_UPDATE);
 			pwm_lpss_cond_enable(pwm, lpwm->info->bypass == false);
@@ -155,10 +155,6 @@ static int pwm_lpss_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 
 			pwm_lpss_cond_enable(pwm, lpwm->info->bypass == true);
 		} else {
-			ret = pwm_lpss_is_updating(pwm);
-			if (ret)
-				goto out;
-
 			pwm_lpss_prepare(lpwm, pwm, state->duty_cycle, state->period);
 			pwm_lpss_write(pwm, pwm_lpss_read(pwm) | PWM_SW_UPDATE);
 			ret = pwm_lpss_wait_for_update(pwm);
