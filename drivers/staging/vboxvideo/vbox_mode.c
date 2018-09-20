@@ -226,17 +226,21 @@ static void vbox_crtc_set_base_and_mode(struct drm_crtc *crtc,
 					struct drm_display_mode *mode,
 					int x, int y)
 {
-	struct vbox_bo *bo = gem_to_vbox_bo(to_vbox_framebuffer(fb)->obj);
 	struct vbox_private *vbox = crtc->dev->dev_private;
 	struct vbox_crtc *vbox_crtc = to_vbox_crtc(crtc);
+	struct vbox_bo *bo;
 
 	mutex_lock(&vbox->hw_mutex);
+
+	if (fb) {
+		bo = gem_to_vbox_bo(to_vbox_framebuffer(fb)->obj);
+		vbox_crtc->fb_offset = vbox_bo_gpu_offset(bo);
+	}
 
 	vbox_crtc->width = mode->hdisplay;
 	vbox_crtc->height = mode->vdisplay;
 	vbox_crtc->x = x;
 	vbox_crtc->y = y;
-	vbox_crtc->fb_offset = vbox_bo_gpu_offset(bo);
 
 	/* vbox_do_modeset() checks vbox->single_framebuffer so update it now */
 	if (mode && vbox_set_up_input_mapping(vbox)) {
