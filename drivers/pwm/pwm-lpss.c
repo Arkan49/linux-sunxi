@@ -219,9 +219,6 @@ struct pwm_lpss_chip *pwm_lpss_probe(struct device *dev, struct resource *r,
 	unsigned long c;
 	int ret;
 
-	if (WARN_ON(info->npwm > MAX_PWMS))
-		return ERR_PTR(-ENODEV);
-
 	lpwm = devm_kzalloc(dev, sizeof(*lpwm), GFP_KERNEL);
 	if (!lpwm)
 		return ERR_PTR(-ENOMEM);
@@ -261,25 +258,35 @@ int pwm_lpss_remove(struct pwm_lpss_chip *lpwm)
 }
 EXPORT_SYMBOL_GPL(pwm_lpss_remove);
 
-int pwm_lpss_suspend(struct device *dev)
-{
-	struct pwm_lpss_chip *lpwm = dev_get_drvdata(dev);
-	int i;
-
-	for (i = 0; i < lpwm->info->npwm; i++)
-		lpwm->saved_ctrl[i] = readl(lpwm->regs + i * PWM_SIZE + PWM);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(pwm_lpss_suspend);
-
 int pwm_lpss_resume(struct device *dev)
 {
 	struct pwm_lpss_chip *lpwm = dev_get_drvdata(dev);
-	int i;
+	int i, ret;
 
-	for (i = 0; i < lpwm->info->npwm; i++)
-		writel(lpwm->saved_ctrl[i], lpwm->regs + i * PWM_SIZE + PWM);
+	for (i = 0; i < lpwm->info->npwm; i++) {
+		struct pwm_device *pwm = &lpwm->chip.pwms[i];
+
+		if (!pwm_is_enabled(pwm)) {
+			pwm_lpss_write(pwm, pwm_lpss_read(pwm) & ~PWM_ENABLE);
+			continue;
+		}
+
+		if (pwm_lpss_is_updating(pwm)) {
+			ret = pwm_lpss_wait_for_update(pwm);
+			if (ret)
+				continue;
+		}
+
+		pwm_lpss_prepare(lpwm, pwm, pwm_get_duty_cycle(pwm),
+				 pwm_get_period(pwm));
+		pwm_lpss_write(pwm, pwm_lpss_read(pwm) | PWM_SW_UPDATE);
+		pwm_lpss_cond_enable(pwm, lpwm->info->bypass == false);
+		ret = pwm_lpss_wait_for_update(pwm);
+		if (ret)
+			continue;
+
+		pwm_lpss_cond_enable(pwm, lpwm->info->bypass == true);
+	}
 
 	return 0;
 }
